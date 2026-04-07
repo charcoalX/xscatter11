@@ -403,7 +403,7 @@ export default function App() {
               </div>
             </div>
 
-            <div id="attribute-vis-content"></div>
+            <div id="attribute-vis-content"><RelationsPanel /></div>
 
             <div id="selection-container">
               <div className="container-title">Drag/Drop Selections <button id="clear-selections-btn" onClick={clearSelections} title="Clear all">&#x2715;</button></div>
@@ -788,6 +788,167 @@ function CountPanel({ countData, countNum }) {
         ))}
       </tbody>
     </table>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RelationsPanel — XOR-gate circle matrix + bar chart
+// Renders when filterLabels has at least one attribute selected
+// ─────────────────────────────────────────────────────────────────────────────
+function RelationsPanel() {
+  const { dots, filterLabels, labels } = useStore()
+  const svgRef       = useRef()
+  const containerRef = useRef()
+
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el) return
+    const svg = d3.select(el)
+    svg.selectAll('*').remove()
+
+    if (!filterLabels.length || !dots.length) return
+
+    // Filter dots where ALL selected attrs have trueLabel === 1
+    const filtered = dots.filter(dot => {
+      if (!dot.trueLabel || !dot.predProb) return false
+      return filterLabels.every(idx => Number(dot.trueLabel[idx]) === 1)
+    })
+
+    if (!filtered.length) {
+      svg.attr('width', 200).attr('height', 30)
+      svg.append('text').attr('x', 6).attr('y', 18)
+        .style('font-size', '11px').attr('fill', '#888')
+        .text('No co-occurring images found')
+      return
+    }
+
+    // Compute XOR gates: gate string length = filterLabels.length
+    const gates = {}
+    for (const dot of filtered) {
+      const gate = filterLabels.map(idx => Number(dot.predProb[idx]) > 0.5 ? '1' : '0').join('')
+      if (!gates[gate]) gates[gate] = { count: 0, imageIds: [] }
+      gates[gate].count++
+      gates[gate].imageIds.push(dot.id)
+    }
+
+    const tableKeys     = Object.keys(gates).sort()
+    const tableValues   = tableKeys.map(k => gates[k].count)
+    const tableRows_len = tableKeys.length
+    const tableCols_len = filterLabels.length
+
+    const container  = containerRef.current
+    const totalWidth = container.clientWidth  || 400
+    const totalHeight= container.clientHeight || 300
+
+    const margin      = { left: 10, top: 4, right: 20, bottom: 4 }
+    const width       = totalWidth  - margin.left - margin.right
+    const height_text = 70
+    const distance    = 3
+    const radius      = Math.min(6, Math.max(3, (width / tableCols_len / 2) - 1))
+
+    // Bar chart start position (right of last column of circles)
+    const lastCircleX = (tableCols_len - 1) * (radius + distance) * 2 + radius + margin.left
+    const xBarStart   = lastCircleX + radius + distance * 4
+    const xBarMaxWidth= Math.max(50, width - xBarStart - 40)
+
+    const linearScale = d3.scaleLinear()
+      .domain([0, d3.max(tableValues)])
+      .range([0, 1])
+
+    svg
+      .attr('width',  totalWidth)
+      .attr('height', totalHeight)
+
+    // Flattened circle items (row-major: rows=gates, cols=attrs)
+    const flatten_items = []
+    for (let i = 0; i < tableRows_len; i++)
+      for (let j = 0; j < tableCols_len; j++)
+        flatten_items.push(tableKeys[i][j])
+
+    // ── circles ──────────────────────────────────────────────────
+    svg.selectAll('.xor-circle')
+      .data(flatten_items)
+      .enter().append('circle')
+      .attr('class', 'xor-circle')
+      .attr('r', radius)
+      .attr('fill',         d => d === '0' ? '#ffffff' : '#4d4d4d')
+      .attr('stroke',       '#000')
+      .attr('stroke-width', '1px')
+      .attr('cx', (d, k) => (k % tableCols_len) * (radius + distance) * 2 + radius + margin.left)
+      .attr('cy', (d, k) => Math.floor(k / tableCols_len) * (radius + distance) * 2 + radius + height_text + distance + margin.top)
+
+    // ── attribute name labels (rotated -45°) ─────────────────────
+    const sortedAttrs = [...filterLabels].sort((a, b) => a - b)
+    svg.selectAll('.xor-attr-label')
+      .data(sortedAttrs)
+      .enter().append('text')
+      .attr('class', 'xor-attr-label')
+      .attr('dy', '.3em')
+      .style('font-size', '11px')
+      .attr('transform', (d, i) => {
+        const x = i * (radius + distance) * 2 + margin.left
+        const y = height_text - distance + margin.top
+        return `translate(${x},${y}) rotate(-45)`
+      })
+      .text(d => labels[d] ?? String(d))
+
+    // ── bar chart column label ────────────────────────────────────
+    svg.append('text')
+      .attr('dy', '.3em')
+      .style('font-size', '11px')
+      .attr('transform', () => {
+        const x = xBarStart + distance
+        const y = height_text - distance + margin.top
+        return `translate(${x},${y}) rotate(-45)`
+      })
+      .text('count')
+
+    // ── bars and count labels ─────────────────────────────────────
+    const barWidths = tableValues.map(v => linearScale(v) * xBarMaxWidth)
+
+    svg.selectAll('.xor-bar')
+      .data(tableValues)
+      .enter().append('rect')
+      .attr('class', 'xor-bar')
+      .attr('x',      xBarStart)
+      .attr('y',      (d, i) => i * (radius + distance) * 2 + height_text + distance + margin.top)
+      .attr('width',  (d, i) => barWidths[i])
+      .attr('height', radius * 2)
+      .attr('fill',   '#b2182b')
+      .style('cursor', 'pointer')
+      .on('mouseover', function() { d3.select(this).attr('fill', '#f4a582') })
+      .on('mouseout',  function() { d3.select(this).attr('fill', '#b2182b') })
+      .on('click', function(event, d) {
+        const i = tableValues.indexOf(d)
+        const imageIds = gates[tableKeys[i]].imageIds
+        useStore.getState().addLassoSelection(imageIds)
+      })
+
+    svg.selectAll('.xor-count')
+      .data(tableValues)
+      .enter().append('text')
+      .attr('class', 'xor-count')
+      .attr('dy', '.3em')
+      .style('font-size', '11px')
+      .attr('fill', 'black')
+      .attr('x', (d, i) => xBarStart + barWidths[i] + distance)
+      .attr('y', (d, i) => i * (radius + distance) * 2 + height_text + radius + distance + margin.top)
+      .text((d, i) => gates[tableKeys[i]].count)
+
+  }, [filterLabels, dots, labels])
+
+  if (!filterLabels.length) {
+    return (
+      <div style={{ padding: 8, fontSize: 11, color: '#888' }}>
+        Click an attribute row above to view co-occurrence patterns
+      </div>
+    )
+  }
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+      <svg ref={svgRef} />
+    </div>
   )
 }
 
