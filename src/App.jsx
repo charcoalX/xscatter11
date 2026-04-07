@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
-import { queryAll } from './api'
+import { queryAll, getCountInfo } from './api'
 import { useStore } from './store/useStore'
 import ScatterPlot from './components/ScatterPlot'
 import { GalleryTab, StatisticsTab, ClusteringTab } from './components/VisPanelTabs'
@@ -55,6 +55,11 @@ export default function App() {
   const [filterOpen, setFilterOpen]       = useState(true)   // Attributes Selection
   const [visOpen, setVisOpen]             = useState(true)   // Group Selection
 
+  // Attribute Study — count table
+  const [countData, setCountData]         = useState(null)
+  const [countLoading, setCountLoading]   = useState(false)
+  const [countNum, setCountNum]           = useState(2)
+
   const {
     setOptions, loadData, setLabels,
     dots, distanceOfErrors, labelColors, filterLabels,
@@ -95,6 +100,23 @@ export default function App() {
       .then(data => { loadData(data); setLoading(false) })
       .catch(e  => { console.error(e); setLoadError(e.message); setLoading(false) })
   }, [dataTypeLabel, errorMethod])
+
+  // ── load count data (lazy, when Attribute Study panel opens) ────────────────
+  useEffect(() => {
+    if (!attrStudyOpen || countData || countLoading) return
+    setCountLoading(true)
+    const params = {
+      'Data type':         dataTypeToApiKey(dataTypeLabel),
+      'Embedding method':  'tsne',
+      'Distance of error': errorMethod.toLowerCase(),
+    }
+    getCountInfo(params)
+      .then(data => { setCountData(data); setCountLoading(false) })
+      .catch(e   => { console.error(e);   setCountLoading(false) })
+  }, [attrStudyOpen])
+
+  // Reset count data when data type changes so it's re-fetched
+  useEffect(() => { setCountData(null) }, [dataTypeLabel, errorMethod])
 
   const dataType      = dataTypeToApiKey(dataTypeLabel)
   const is6Layer      = compareMode === '6layers'
@@ -177,7 +199,7 @@ export default function App() {
             <option disabled title="Not available">PCA</option>
           </select>
 
-          <button className="navbar-buttons" onClick={toggleAttrStudy}>Open Attribute Study</button>
+          <button className="navbar-buttons" onClick={() => { toggleAttrStudy(); setFilterOpen(true) }}>Open Attribute Study</button>
           <button className="navbar-buttons" onClick={toggleModelArch}>Model Architecture</button>
           <button className="navbar-buttons" onClick={toggleAIAssistant}>AI Assistant</button>
         </div>
@@ -426,20 +448,39 @@ export default function App() {
 
         {/* ════ ATTRIBUTE VIS CONTAINER */}
         <div id="attribute-vis-container" style={{ width: attrStudyOpen ? '50%' : '0%' }}>
-          <div id="attribute-matrix2-content"></div>
+
+          {/* ── count table (top 40%) ── */}
+          <div id="attribute-matrix2-content">
+            {countLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
+            {countData && (
+              <CountPanel
+                countData={countData}
+                countNum={countNum}
+              />
+            )}
+          </div>
+
+          {/* ── heatmap (bottom 60%) — TODO ── */}
           <div id="attribute-matrix-content"></div>
+
           <div id="matrix-option-row">
             <select id="attribute-matrix-option">
               <option value="MI">Mutual Info</option>
-              <option value="correlation" defaultValue>Correlation</option>
+              <option value="correlation">Correlation</option>
               <option value="conditional_entropy_truelabel">Cond. Entropy Truelabel</option>
               <option value="conditional_entropy_prediction">Cond. Entropy Prediction</option>
             </select>
             <button id="matrix-cluster-btn">Cluster</button>
           </div>
-          <select id="attribute-matrix2-option" defaultValue="2">
+
+          <select
+            id="attribute-matrix2-option"
+            value={countNum}
+            onChange={e => setCountNum(Number(e.target.value))}
+          >
             {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
           </select>
+
           <div id="attribute-matrix-title">Coexisting Attributes Statistics</div>
           <div id="attribute-matrix2-title">Pairwise Attributes Information</div>
         </div>
@@ -668,6 +709,85 @@ function DetailedImage({ id, dataType }) {
         transition: 'opacity 0.1s',
       }} />
     </div>
+  )
+}
+
+// ── Count table helpers ───────────────────────────────────────────────────────
+
+function processCountRows(countData, num) {
+  // Backend returns { "1": {attr_0:…}, "2": {attr_0_1:…}, … }
+  const subData = countData[num] ?? countData[String(num)]
+  if (!subData) return []
+  const rows = []
+  for (const [key, val] of Object.entries(subData)) {
+    const ids = key.split('_').slice(1).map(Number)  // strip leading 'attr'
+    // num=1: imageIDs is [[…]] (numpy.where tuple); num>=2: flat […]
+    const number = ids.length === 1
+      ? (val.imageIDs?.[0]?.length ?? 0)
+      : (val.imageIDs?.length ?? 0)
+    rows.push({
+      Attributes: ids,
+      Number:     number,
+      CorNum:     val.imageIDs_correctPred?.length ?? 0,
+    })
+  }
+  return rows
+}
+
+function CountPanel({ countData, countNum }) {
+  const { labels, labelColors, selectAllLabels, toggleFilterLabel } = useStore()
+  const [sort, setSort] = useState({ col: 'Number', dir: 'desc' })
+
+  const rows = useMemo(() => {
+    if (!countData) return []
+    const result = processCountRows(countData, countNum)
+    const dir = sort.dir === 'desc' ? -1 : 1
+    result.sort((a, b) => dir * (b[sort.col] - a[sort.col]))
+    return result
+  }, [countData, countNum, sort])
+
+  const cycleSort = (col) => {
+    setSort(prev =>
+      prev.col === col
+        ? { col, dir: prev.dir === 'desc' ? 'asc' : 'desc' }
+        : { col, dir: 'desc' }
+    )
+  }
+
+  const handleAttrClick = (ids) => {
+    selectAllLabels()
+    ids.forEach(i => toggleFilterLabel(i))
+  }
+
+  const thClass = (col) =>
+    sort.col === col ? (sort.dir === 'desc' ? 'aes' : 'des') : 'header'
+
+  return (
+    <table className="scroll">
+      <thead>
+        <tr>
+          <th className="header">Attributes</th>
+          <th className={thClass('Number')}  onClick={() => cycleSort('Number')}>Number</th>
+          <th className={thClass('CorNum')}  onClick={() => cycleSort('CorNum')}>CorNum</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, i) => (
+          <tr key={i}>
+            <td style={{ cursor: 'pointer' }} onClick={() => handleAttrClick(row.Attributes)}>
+              {row.Attributes.map(idx => (
+                <span key={idx} style={{ marginRight: 4 }}>
+                  <span style={{ color: labelColors[idx] ?? '#252525', fontSize: 16 }}>■</span>
+                  {' '}{labels[idx] ?? idx}
+                </span>
+              ))}
+            </td>
+            <td>{row.Number}</td>
+            <td>{row.CorNum}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
