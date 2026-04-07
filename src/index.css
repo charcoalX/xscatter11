@@ -1,0 +1,7 @@
+/* pass height 100% down to React root so #main-container calc(100% - 25px) works */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}

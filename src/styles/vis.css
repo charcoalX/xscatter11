@@ -1,0 +1,102 @@
+.vis-panel {
+    width: 100%;
+    /* height/min-height defined in style.css (50% / 220px).
+       flex-shrink keeps panels from collapsing when many are stacked. */
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.vis-panel-content {
+    height: calc(100% - 37px);
+}
+
+
+.tab {
+    overflow: hidden;
+    background-color: #f1f1f1;
+    height: 17px;
+}
+
+.tab-buttons {
+    background-color: #f0f0f0;
+    color: #000;
+    height: 17px;
+    float: left;
+    outline: none;
+    cursor: pointer;
+    padding: 0px 10px;
+    transition: 0.3s;
+    font-size: 12px;
+    width: 33.3%;
+    border: none;
+    text-decoration: underline;
+}
+
+.tab-buttons:hover {
+    background-color: #525252;
+    color: #f0f0f0;
+}
+
+.tab-buttons.active {
+    background-color: #525252;
+    color: #f0f0f0;
+}
+  
+.tabcontent {
+    display: none;
+    padding: 6px 12px;
+    border: 1px solid #ccc;
+    border-top: none;
+}
+
+.tab-lock-button {
+    position :absolute;
+    width: auto;
+    height: auto;
+    top: 40px;
+    right: 5px;
+    color: #d9d9d9;
+    background: transparent;
+    outline: none;
+    border: none;
+    font-size: 20px;
+    z-index: 1000;
+    cursor: pointer;
+}
+
+.tab-lock-button:hover {
+    color: #525252;
+}
+
+.tab-lock-button.active {
+    color: #525252;
+}
+
+.brush .extent {
+    fill-opacity: .3;
+    stroke: #fff;
+  
+    shape-rendering: crispEdges;
+}
+
+#image-content {
+    white-space: nowrap;
+    overflow-x: scroll;
+    overflow-y: hidden;
+}
+
+.heatmap-tooltip {
+    position: absolute;
+    text-align: left;
+    width: auto;
+    height: auto;
+    padding: 2px;
+    font-size: 12px;
+    background: #f0f0f0;
+    border: 0px;
+    border-radius: 2px;
+    outline: none;
+    pointer-events: none;
+}

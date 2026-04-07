@@ -1,0 +1,25 @@
+.gallery-label-container {
+    width: 90%;
+    display: block;
+    overflow-y: hidden;
+    overflow-x: auto; 
+    border: 1px solid #d9d9d9;
+    margin-top: 2px;
+    color: #000;
+    font-size: 12px;
+}
+
+.gallery-label-title {
+    width: 100%;
+    height: 14px;
+    padding: 1px;
+    font-size: 12px;
+    text-align: center;
+    color: #ffffff;
+}
+
+.gallery-label {
+    width: 50%;
+    height: 100%;
+    float: left;
+}

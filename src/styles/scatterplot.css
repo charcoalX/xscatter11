@@ -1,0 +1,164 @@
+#single-select-btn {
+    position: absolute;
+    width: 80px;
+    text-align: left;
+    top: 20px;
+    left: 5px;
+    background: #525252;
+    color: #ffffff;
+    outline: none;
+    cursor: pointer;
+    border: none;
+    font-size: 12px;
+    z-index: 1000;
+    text-decoration: underline;
+}
+
+#multiple-select-btn {
+    position: absolute;
+    width: 80px;
+    text-align: left;
+    top: 40px;
+    left: 5px;
+    background: #ffffff;
+    color: #252525;
+    outline: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    z-index: 1000;
+    text-decoration: underline;
+}
+
+/* scatterplot visualization mode */
+.dot-color-btn {
+    position: absolute;
+    width: 80px;
+    text-align: left;
+    color: #252525;
+    background: #ffffff;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    font-size: 12px;
+    z-index: 1000;
+    text-decoration: underline;
+}
+
+.dot-color-btn.selected {
+    background: #525252;
+    color: #f0f0f0;
+}
+
+#default-dot-btn {
+    top: 65px;
+    left: 5px;
+}
+
+#prediction-dot-btn {
+    top: 85px;
+    left: 5px;
+}
+
+#flower-dot-btn {
+    top: 105px;
+    left: 5px;
+}
+
+#background-opacity-container {
+    position: absolute;
+    top: 125px;
+    left: 5px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    width: 80px;
+}
+
+#background-opacity-label {
+    font-size: 11px;
+    color: #252525;
+    margin-bottom: 2px;
+}
+
+#background-opacity-slider {
+    width: 80px;
+    cursor: pointer;
+    accent-color: #525252;
+}
+
+#act-content {
+    overflow: hidden;
+    width: 100%;
+}
+
+#fea-content {
+    overflow: hidden;
+    width: 100%;
+}
+
+#prd-content {
+    overflow: hidden;
+    width: 100%;
+}
+
+#scatterplot-image {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    bottom: 5px;
+    left: 5px;
+    z-index: 1000;
+    opacity: 0;
+}
+
+#scatterplot-imageid {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    bottom: 20px;
+    left: 5px;
+    z-index: 1000;
+    opacity: 0;
+    font-size: 12px;
+}
+
+/* lasso style */
+/* lasso style */
+.lasso path {
+    stroke: #525252;
+    stroke-width: 2px;
+}
+.lasso .drawn {
+    fill-opacity: .05;
+}
+.lasso .loop_close {
+    fill:none;
+    stroke-dasharray: 4,4;
+}
+.lasso .origin {
+    fill:#feb24c;
+    fill-opacity:.5;
+}
+
+#plot-options {
+    position: absolute;
+    top: 20px;
+    right: 5px;
+    height: auto;
+    width: auto;
+    outline: none;
+    font-size: 12px;
+    border-radius: 0px;
+    z-index: 1000;
+}
+
+/* clicked-dot red ring pulse animation */
+@keyframes redRingPulse {
+    0%,  100% { r: 7px;  stroke-opacity: 1;   }
+    50%        { r: 13px; stroke-opacity: 0.35; }
+}
+
+.red-ring-clicked.red-ring-pulse {
+    animation: redRingPulse 0.8s ease-in-out infinite;
+}

@@ -1,0 +1,38 @@
+table {
+    width: 88%;
+    border-collapse: collapse;
+    margin: 0px auto;
+    overflow-y:scroll;
+    float: right;
+}
+/* Zebra striping */
+tr:nth-of-type(odd) {
+    background: #eee;
+}
+
+th {
+    background: #525252;
+    color: white;
+    /* font-weight: bold; */
+    font-size: 14px;
+    cursor: s-resize;
+    background-repeat: no-repeat;
+    background-position: 3% center;
+}
+
+td,
+th {
+    padding: 6px;
+    border: 1px solid #ccc;
+    text-align: left;
+    font-size: 12px;
+}
+
+th.des:after {
+    content: "\21E3";
+}
+
+th.aes:after {
+    content: "\21E1";
+}
+

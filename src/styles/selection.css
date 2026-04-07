@@ -1,0 +1,63 @@
+.selection-header {
+    width: 100%;
+    height: 20px;
+    font-size: 12px;
+    background: #fff;
+    padding: 2px;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    border: 1px solid #d9d9d9;
+    position: relative;
+}
+
+.selection-header:hover {
+    background: #f0f0f0;
+    cursor: pointer;
+}
+
+.colorpicker-button {
+    width: 20px;
+    height: 20px;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+
+/* Remove buttons */
+.selection-remove-button {
+    background: transparent;
+    height: 20px;
+    width: auto;
+    color: #252525;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    border: none;
+    padding: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.selection-remove-button:hover {
+    color: #525252;
+}
+
+/* clone buttons */
+.selection-clone-button {
+    background: transparent;
+    height: 20px;
+    width: auto;
+    color: #252525;
+    font-size: 12px;
+    cursor: pointer;
+    outline: none;
+    border: none;
+    padding: 2px;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.selection-clone-button:hover {
+    color: #525252;
+}
