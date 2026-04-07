@@ -777,7 +777,7 @@ function CountPanel({ countData, countNum }) {
             <td style={{ cursor: 'pointer' }} onClick={() => handleAttrClick(row.Attributes)}>
               {row.Attributes.map(idx => (
                 <span key={idx} style={{ marginRight: 4 }}>
-                  <span style={{ color: labelColors[idx] ?? '#252525', fontSize: 16 }}>■</span>
+                  <span style={{ display: 'inline-block', width: 10, height: 10, background: labelColors[idx] ?? '#252525', verticalAlign: 'middle' }} />
                   {' '}{labels[idx] ?? idx}
                 </span>
               ))}
