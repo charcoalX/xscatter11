@@ -493,10 +493,35 @@ function VisPanel({ panelId, tab, onTab, selection, dataType }) {
 function DetailedImage({ id, dataType }) {
   const { dots, labels, labelColors, setHoveredDot, removeImageId } = useStore()
   const dot = dots.find(d => d.id === id)
-  const heatmapRef = useRef(null)
-  const tipRef     = useRef(null)
-  const cardRef    = useRef(null)
-  const imgRef     = useRef(null)
+  const heatmapRef  = useRef(null)
+  const tipRef      = useRef(null)
+  const imgRef      = useRef(null)
+  const overlayRef  = useRef(null)
+
+  // LRP state: null | { src, label, opacity, loading, error }
+  const [lrp, setLrp] = useState(null)
+
+  // Request LRP heatmap from backend when a PRD rect is clicked
+  const requestLRP = useCallback(async (attrIdx) => {
+    const labelName = labels[attrIdx] ?? `class ${attrIdx}`
+    setLrp(prev => ({ ...(prev ?? {}), loading: true, error: null, label: `computing ${labelName}…` }))
+    try {
+      const { getLRPHeatmap } = await import('./api')
+      const result = await getLRPHeatmap({ image_id: id, class_idx: attrIdx, data_type: dataType })
+      if (result.status === 'ok') {
+        const pVal = dot?.predProb?.[attrIdx] != null
+          ? dot.predProb[attrIdx].toFixed(2)
+          : (result.pred_prob ?? 0).toFixed(2)
+        const src   = `data:image/png;base64,${result.heatmap_b64}`
+        const label = `LRP: ${labelName} (p=${pVal})`
+        setLrp({ src, label, opacity: 0.7, loading: false, error: null })
+      } else {
+        setLrp(prev => ({ ...(prev ?? {}), loading: false, error: result.message ?? 'error' }))
+      }
+    } catch {
+      setLrp(prev => ({ ...(prev ?? {}), loading: false, error: 'LRP unavailable' }))
+    }
+  }, [id, dataType, dot, labels])
 
   // Draw PRD / ACT heatmap — mirrors original formula: rh = floor(heatmapH/2/rows) - 10
   const drawHeatmap = useCallback((imgEl) => {
@@ -507,17 +532,15 @@ function DetailedImage({ id, dataType }) {
     const W        = el.offsetWidth || 120
     const cols     = 6
     const rows     = Math.ceil(dot.predProb.length / cols)
-    const distance = 3   // gap between rects (matches original)
+    const distance = 3
 
-    // Mirror original sizing logic exactly
     const resolvedImg = imgEl || imgRef.current
     const containerH  = el.closest('#image-content')?.offsetHeight ?? 200
     const imgMaxH     = Math.floor(containerH * 0.5)
     const imgH        = resolvedImg ? Math.min(resolvedImg.offsetHeight, imgMaxH) : imgMaxH
-    const overhead    = 26   // header line (~16px) + card padding (10px)
+    const overhead    = 26
     const heatmapH    = Math.max(50, containerH - imgH - overhead)
 
-    // Original formula: rect_height = ((height/2) / rows) - 10
     const rh = Math.max(3, Math.floor(heatmapH / 2 / rows) - 10)
     const rw = Math.floor(W / cols) - distance
     const H  = heatmapH
@@ -525,9 +548,8 @@ function DetailedImage({ id, dataType }) {
     const svg = d3.select(el).append('svg').attr('width', W).attr('height', H)
     const tip = d3.select(tipRef.current)
 
-    // Original transform: x = (rw+distance)*(i%cols), y = (rh+distance)*floor(i/cols) + yBase
-    const px   = i => (rw + distance) * (i % cols)
-    const py   = (i, yBase) => (rh + distance) * Math.floor(i / cols) + yBase
+    const px = i => (rw + distance) * (i % cols)
+    const py = (i, yBase) => (rh + distance) * Math.floor(i / cols) + yBase
 
     const showTip = (event, val, i) => {
       tip.style('opacity', 1)
@@ -537,8 +559,8 @@ function DetailedImage({ id, dataType }) {
     }
     const hideTip = () => tip.style('opacity', 0)
 
-    // ── PRD (top half) ──
-    const prdBase = 15   // matches original y offset
+    // ── PRD (top half) — clickable ──
+    const prdBase = 15
     svg.append('text').attr('x', 0).attr('y', 10).attr('font-size', 10).attr('fill', '#444').text('PRD')
     svg.selectAll('.prd-bg').data(dot.predProb).join('rect')
       .attr('x', (_, i) => px(i)).attr('y', (_, i) => py(i, prdBase))
@@ -552,9 +574,14 @@ function DetailedImage({ id, dataType }) {
       .on('mouseover', (event, d) => { const i = dot.predProb.indexOf(d); showTip(event, d, i) })
       .on('mousemove', (event, d) => { const i = dot.predProb.indexOf(d); showTip(event, d, i) })
       .on('mouseout', hideTip)
+      .on('click', (event, d) => {
+        event.stopPropagation()
+        const i = dot.predProb.indexOf(d)
+        requestLRP(i)
+      })
 
     // ── ACT (bottom half) ──
-    const actBase = H / 2 + 10   // matches original y offset for ACT section
+    const actBase = H / 2 + 10
     svg.append('text').attr('x', 0).attr('y', H / 2 + 1).attr('font-size', 10).attr('fill', '#444').text('ACT')
     svg.selectAll('.act-fill').data(dot.trueLabel ?? []).join('rect')
       .attr('x', (_, i) => px(i)).attr('y', (_, i) => py(i, actBase))
@@ -564,13 +591,18 @@ function DetailedImage({ id, dataType }) {
       .on('mouseover', (event, d) => { const i = (dot.trueLabel ?? []).indexOf(d); showTip(event, d, i) })
       .on('mousemove', (event, d) => { const i = (dot.trueLabel ?? []).indexOf(d); showTip(event, d, i) })
       .on('mouseout', hideTip)
-  }, [dot, labels, labelColors, dataType])
+  }, [dot, labels, labelColors, dataType, requestLRP])
 
   useEffect(() => { drawHeatmap() }, [drawHeatmap])
 
+  // Sync overlay opacity when slider changes
+  const handleOpacity = (e) => {
+    const opacity = parseFloat(e.target.value)
+    setLrp(prev => prev ? { ...prev, opacity } : prev)
+  }
+
   return (
     <div
-      ref={cardRef}
       style={{
         display: 'inline-block', verticalAlign: 'top', background: '#fff',
         marginRight: 8, padding: '6px 6px 4px', position: 'relative',
@@ -579,22 +611,58 @@ function DetailedImage({ id, dataType }) {
       onMouseEnter={() => dot && setHoveredDot(dot)}
       onMouseLeave={() => setHoveredDot(null)}
     >
-      <div style={{ marginBottom: 2, paddingRight: 16 }}>Image ID: {id}</div>
+      {/* header */}
+      <div style={{ marginBottom: 2, paddingRight: 36, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        Image ID: {id}
+      </div>
+
+      {/* LRP label — always reserves space so layout is stable */}
+      <div style={{ fontSize: 9, color: lrp?.error ? '#c00' : '#444', height: 14, overflow: 'hidden',
+                    textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: '14px', marginBottom: 1 }}>
+        {lrp?.loading ? 'computing…' : (lrp?.error ?? lrp?.label ?? '')}
+      </div>
+
+      {/* opacity slider — only shown when overlay is ready */}
+      {lrp?.src && !lrp.loading && (
+        <input type="range" min={0} max={1} step={0.05} value={lrp.opacity}
+          onChange={handleOpacity}
+          className="slider-thin"
+          style={{ position: 'absolute', top: 5, right: 18, width: 34, zIndex: 10 }}
+        />
+      )}
+
+      {/* close button */}
       <button
-        style={{
-          position: 'absolute', top: 2, right: 2, border: 'none',
-          background: 'transparent', cursor: 'pointer', fontSize: 11, lineHeight: 1,
-        }}
+        style={{ position: 'absolute', top: 2, right: 2, border: 'none',
+                 background: 'transparent', cursor: 'pointer', fontSize: 11, lineHeight: 1 }}
         onClick={() => removeImageId(id)}
       >&#x2715;</button>
-      <img
-        ref={imgRef}
-        src={imageSrc(dataType, id)}
-        alt={`id ${id}`}
-        style={{ width: '100%', height: 'auto', display: 'block', imageRendering: 'pixelated', maxHeight: '50%', objectFit: 'contain' }}
-        onLoad={e => drawHeatmap(e.target)}
-      />
+
+      {/* image + LRP overlay */}
+      <div style={{ position: 'relative', width: '100%' }}>
+        <img
+          ref={imgRef}
+          src={imageSrc(dataType, id)}
+          alt={`id ${id}`}
+          style={{ width: '100%', height: 'auto', display: 'block',
+                   imageRendering: 'pixelated', maxHeight: '50%', objectFit: 'contain' }}
+          onLoad={e => drawHeatmap(e.target)}
+        />
+        {lrp?.src && (
+          <img
+            ref={overlayRef}
+            src={lrp.src}
+            alt="LRP overlay"
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                     objectFit: 'contain', opacity: lrp.opacity, pointerEvents: 'none' }}
+          />
+        )}
+      </div>
+
+      {/* PRD / ACT heatmap */}
       <div ref={heatmapRef} style={{ width: '100%' }} />
+
+      {/* tooltip */}
       <div ref={tipRef} className="heatmap-tooltip" style={{
         position: 'fixed', opacity: 0, pointerEvents: 'none', zIndex: 9999,
         transition: 'opacity 0.1s',
