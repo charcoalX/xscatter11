@@ -485,7 +485,7 @@ html, body {
     width: 300px;
     height: 0;
     overflow: hidden;
-    background: #1e1e2e;
+    background: #f5f5f5;
     border: none;
     display: flex;
     flex-direction: column;
@@ -497,34 +497,34 @@ html, body {
 
 #ai-assistant-panel.open {
     height: 420px;
-    border-left: 1px solid #444;
-    border-bottom: 1px solid #444;
+    border-left: 1px solid #ccc;
+    border-bottom: 1px solid #ccc;
 }
 
 #ai-assistant-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #252540;
+    background: #e0e0e0;
     padding: 4px 8px;
-    color: #d0d0d0;
+    color: #252525;
     font-size: 12px;
     font-weight: bold;
     flex-shrink: 0;
-    border-bottom: 1px solid #444;
+    border-bottom: 1px solid #ccc;
 }
 
 #ai-assistant-close {
     background: transparent;
     border: none;
-    color: #aaa;
+    color: #555;
     cursor: pointer;
     font-size: 12px;
     outline: none;
     line-height: 1;
     padding: 0 2px;
 }
-#ai-assistant-close:hover { color: #fff; }
+#ai-assistant-close:hover { color: #000; }
 
 #ai-assistant-messages {
     flex: 1;
@@ -546,48 +546,48 @@ html, body {
 
 .ai-msg-user {
     align-self: flex-end;
-    background: #3a3a6a;
-    color: #e8e8f0;
+    background: #d0d8e8;
+    color: #252525;
     border-bottom-right-radius: 3px;
 }
 
 .ai-msg-assistant {
     align-self: flex-start;
-    background: #2a2a3e;
-    color: #d4d4e8;
+    background: #e8e8e8;
+    color: #252525;
     border-bottom-left-radius: 3px;
 }
 
 .ai-msg-error {
-    background: #3e1a1a;
-    color: #f88;
+    background: #f8d0d0;
+    color: #a00;
 }
 
 #ai-assistant-input-row {
     display: flex;
     padding: 6px;
     gap: 4px;
-    border-top: 1px solid #444;
+    border-top: 1px solid #ccc;
     flex-shrink: 0;
-    background: #1a1a2e;
+    background: #ececec;
 }
 
 #ai-assistant-input {
     flex: 1;
-    background: #2a2a3e;
-    border: 1px solid #555;
-    color: #d4d4e8;
+    background: #ffffff;
+    border: 1px solid #bbb;
+    color: #252525;
     font-size: 12px;
     padding: 4px 6px;
     outline: none;
     border-radius: 4px;
 }
-#ai-assistant-input::placeholder { color: #666; }
-#ai-assistant-input:focus { border-color: #7070b0; }
+#ai-assistant-input::placeholder { color: #999; }
+#ai-assistant-input:focus { border-color: #888; }
 
 #ai-assistant-send {
-    background: #525280;
-    color: #e0e0f0;
+    background: #525252;
+    color: #f0f0f0;
     border: none;
     padding: 4px 10px;
     cursor: pointer;
@@ -596,8 +596,8 @@ html, body {
     outline: none;
     white-space: nowrap;
 }
-#ai-assistant-send:hover { background: #6565a0; }
-#ai-assistant-send:disabled { background: #3a3a55; color: #666; cursor: default; }
+#ai-assistant-send:hover { background: #333; }
+#ai-assistant-send:disabled { background: #bbb; color: #888; cursor: default; }
 
 /* ── arch-tooltip ────────────────────────────────────────────────── */
 #arch-tooltip {

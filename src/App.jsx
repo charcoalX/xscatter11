@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import * as d3 from 'd3'
-import { queryAll, getCountInfo } from './api'
+import { queryAll, getCountInfo, getMutualInfo } from './api'
 import { useStore } from './store/useStore'
 import ScatterPlot from './components/ScatterPlot'
 import { GalleryTab, StatisticsTab, ClusteringTab } from './components/VisPanelTabs'
@@ -18,7 +18,6 @@ const ERROR_METHOD_OPTIONS = ['Cosine', 'Euclidean', 'Manhattan']
 
 const FEATURE_FILES = {
   '17tags_meta.txt': '17tags_meta.txt',
-  'cifar10.txt': 'cifar10.txt',
 }
 
 const PLOT_OPTIONS = [
@@ -59,6 +58,12 @@ export default function App() {
   const [countData, setCountData]         = useState(null)
   const [countLoading, setCountLoading]   = useState(false)
   const [countNum, setCountNum]           = useState(2)
+
+  // Attribute Study — pairwise matrix
+  const [matrixData, setMatrixData]       = useState(null)
+  const [matrixLoading, setMatrixLoading] = useState(false)
+  const [matrixMetric, setMatrixMetric]   = useState('correlation')
+  const [matrixClustered, setMatrixClustered] = useState(false)
 
   const {
     setOptions, loadData, setLabels,
@@ -117,6 +122,23 @@ export default function App() {
 
   // Reset count data when data type changes so it's re-fetched
   useEffect(() => { setCountData(null) }, [dataTypeLabel, errorMethod])
+
+  // ── load matrix data (lazy, when Attribute Study panel opens) ────────────────
+  useEffect(() => {
+    if (!attrStudyOpen || matrixData || matrixLoading) return
+    setMatrixLoading(true)
+    const params = {
+      'Data type':         dataTypeToApiKey(dataTypeLabel),
+      'Embedding method':  'tsne',
+      'Distance of error': errorMethod.toLowerCase(),
+    }
+    getMutualInfo(params)
+      .then(data => { setMatrixData(data); setMatrixLoading(false) })
+      .catch(e   => { console.error(e);    setMatrixLoading(false) })
+  }, [attrStudyOpen])
+
+  // Reset matrix data when data type changes
+  useEffect(() => { setMatrixData(null) }, [dataTypeLabel, errorMethod])
 
   const dataType      = dataTypeToApiKey(dataTypeLabel)
   const is6Layer      = compareMode === '6layers'
@@ -180,8 +202,7 @@ export default function App() {
             onChange={e => setDataTypeLabel(e.target.value)}
           >
             <option>Synthetic</option>
-            <option>Experimental</option>
-            <option disabled title="Not available">Cifar10</option>
+            <option disabled title="Not available">Experimental</option>
           </select>
 
           <label>Error methods: </label>
@@ -460,17 +481,34 @@ export default function App() {
             )}
           </div>
 
-          {/* ── heatmap (bottom 60%) — TODO ── */}
-          <div id="attribute-matrix-content"></div>
+          {/* ── heatmap (bottom 60%) ── */}
+          <div id="attribute-matrix-content">
+            {matrixLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
+            {matrixData && (
+              <MatrixPanel
+                matrixData={matrixData}
+                matrixMetric={matrixMetric}
+                matrixClustered={matrixClustered}
+              />
+            )}
+          </div>
 
           <div id="matrix-option-row">
-            <select id="attribute-matrix-option">
+            <select
+              id="attribute-matrix-option"
+              value={matrixMetric}
+              onChange={e => setMatrixMetric(e.target.value)}
+            >
               <option value="MI">Mutual Info</option>
               <option value="correlation">Correlation</option>
               <option value="conditional_entropy_truelabel">Cond. Entropy Truelabel</option>
               <option value="conditional_entropy_prediction">Cond. Entropy Prediction</option>
             </select>
-            <button id="matrix-cluster-btn">Cluster</button>
+            <button
+              id="matrix-cluster-btn"
+              className={matrixClustered ? 'selected' : ''}
+              onClick={() => setMatrixClustered(c => !c)}
+            >Cluster</button>
           </div>
 
           <select
@@ -792,6 +830,334 @@ function CountPanel({ countData, countNum }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MatrixPanel — Pairwise attribute information heatmap
+// ─────────────────────────────────────────────────────────────────────────────
+
+function setNum(num) {
+  const res = num.toFixed(2)
+  if (res[0] === '-' && res[1] === '0') return res.replace('-0', '-')
+  if (res[0] === '0' && res[1] === '.') return res.replace('0.', '.')
+  return res
+}
+
+function clusterAttributes(mutualInfo, N) {
+  const D = []
+  for (let i = 0; i < N; i++) {
+    D[i] = []
+    for (let j = 0; j < N; j++) {
+      if (i === j) { D[i][j] = 0; continue }
+      let val = mutualInfo[i + '-' + j]
+      if (val === undefined) val = mutualInfo[j + '-' + i]
+      D[i][j] = (val === undefined || val >= 1000000) ? 1 : 1 - Math.abs(val)
+    }
+  }
+  const tree = d3.range(N).map(i => ({ leaves: [i] }))
+  const active = d3.range(N)
+  const CD = D.map(row => row.slice())
+  while (active.length > 1) {
+    let minD = Infinity, ai = -1, bi = -1
+    for (let p = 0; p < active.length - 1; p++)
+      for (let q = p + 1; q < active.length; q++)
+        if (CD[active[p]][active[q]] < minD) { minD = CD[active[p]][active[q]]; ai = p; bi = q }
+    const a = active[ai], b = active[bi]
+    const lA = tree[a].leaves.length, lB = tree[b].leaves.length
+    const newIdx = tree.length
+    tree.push({ leaves: tree[a].leaves.concat(tree[b].leaves) })
+    CD.push([])
+    for (let k = 0; k < active.length; k++) {
+      const c = active[k]
+      if (c === a || c === b) continue
+      const dv = (CD[a][c] * lA + CD[b][c] * lB) / (lA + lB)
+      CD[newIdx][c] = dv; CD[c][newIdx] = dv
+    }
+    CD[newIdx][newIdx] = 0
+    active.splice(bi, 1); active.splice(ai, 1); active.push(newIdx)
+  }
+  return tree[active[0]].leaves
+}
+
+function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
+  const { labels, selectAllLabels, toggleFilterLabel } = useStore()
+  const svgRef       = useRef()
+  const containerRef = useRef()
+
+  useEffect(() => {
+    const el = svgRef.current
+    if (!el || !matrixData || !labels.length) return
+    const svg = d3.select(el)
+    svg.selectAll('*').remove()
+
+    // Resolve metric key and mode
+    const isCondEntropy = matrixMetric.startsWith('conditional_entropy')
+    const metricKey  = isCondEntropy ? 'conditional_entropy' : matrixMetric
+    const mutualInfo = matrixData[metricKey]
+    if (!mutualInfo) return
+
+    const kvPred    = mutualInfo.predProb    ?? {}
+    const kvTrue    = mutualInfo.trueLabel   ?? {}
+    const kvBetween = mutualInfo.between     ?? {}
+
+    // Compute value ranges (exclude sentinel 1000000)
+    const validValues = arr => Object.values(arr).filter(v => v < 1000000)
+    const rangeOf = arr => { const v = validValues(arr); return [d3.min(v) ?? 0, d3.max(v) ?? 1] }
+    const [minPred, maxPred]     = rangeOf(kvPred)
+    const [minTrue, maxTrue]     = rangeOf(kvTrue)
+    const [minBetw, maxBetw]     = rangeOf(kvBetween)
+
+    const scalePred = d3.scaleLinear().domain([minPred, maxPred]).range([minPred, maxPred])
+    const scaleTrue = d3.scaleLinear().domain([minTrue, maxTrue]).range([minTrue, maxTrue])
+    const scaleBetw = d3.scaleLinear().domain([minBetw, maxBetw]).range([minBetw, maxBetw])
+    // For drawMatrix (single triangle) we normalize to [0,1]
+    const scaleNorm = d3.scaleLinear().domain([minTrue, maxTrue]).range([0, 1])
+    const scaleNormP= d3.scaleLinear().domain([minPred, maxPred]).range([0, 1])
+
+    const N = labels.length
+    const margin = { left: 240, top: 110, right: 50, bottom: 30 }
+    const width  = containerRef.current.clientWidth  || 500
+    const height = containerRef.current.clientHeight || 400
+    const distance = 0
+    const minOpa = isCondEntropy ? 0.2 : 0.1
+
+    const cellSize = Math.min(17, (width - margin.left - margin.right) / N, (height - margin.top - margin.bottom) / N)
+    const rw = cellSize + 6
+    const rh = cellSize
+
+    // Attribute ordering
+    const order = matrixClustered
+      ? clusterAttributes(kvTrue, N)
+      : d3.range(N)
+    const pos = new Array(N)
+    order.forEach((origIdx, visPos) => { pos[origIdx] = visPos })
+
+    svg.attr('width', width).attr('height', height)
+
+    // ── click handler ────────────────────────────────────────────
+    function onCellClick(i, j) {
+      selectAllLabels()
+      toggleFilterLabel(parseInt(i))
+      if (i !== j) toggleFilterLabel(parseInt(j))
+    }
+
+    // ── hover/out helpers (highlight row/col labels) ──────────────
+    function onCellOver(i, j) {
+      d3.select(`#mx-col-${j}`).attr('fill', 'red').style('font-weight', 'bold').style('font-size', '14px')
+      d3.select(`#mx-row-${i}`).attr('fill', 'red').style('font-weight', 'bold').style('font-size', '14px')
+      d3.select(`#mx-col-${i}`).attr('fill', 'blue').style('font-weight', 'bold').style('font-size', '14px')
+      d3.select(`#mx-row-${j}`).attr('fill', 'blue').style('font-weight', 'bold').style('font-size', '14px')
+      d3.select(`#mx-txt-${i}-${j}`).style('stroke', 'blue').style('font-size', '10px').style('stroke-width', '0.8px')
+      d3.select(`#mx-txt-${j}-${i}`).style('stroke', 'red').style('font-size', '10px').style('stroke-width', '0.8px')
+    }
+    function onCellOut(i, j) {
+      d3.select(`#mx-col-${j}`).attr('fill', '#000').style('font-weight', 'normal').style('font-size', '12px')
+      d3.select(`#mx-row-${i}`).attr('fill', '#000').style('font-weight', 'normal').style('font-size', '12px')
+      d3.select(`#mx-col-${i}`).attr('fill', '#000').style('font-weight', 'normal').style('font-size', '12px')
+      d3.select(`#mx-row-${j}`).attr('fill', '#000').style('font-weight', 'normal').style('font-size', '12px')
+      d3.select(`#mx-txt-${i}-${j}`).style('stroke', '#000').style('font-size', '9px').style('stroke-width', '0.1px')
+      d3.select(`#mx-txt-${j}-${i}`).style('stroke', '#000').style('font-size', '9px').style('stroke-width', '0.1px')
+    }
+
+    // ── draw axis labels ─────────────────────────────────────────
+    const orderedLabels = order.map(i => labels[i])
+    svg.selectAll('.mx-col-label').data(orderedLabels).enter().append('text')
+      .attr('id', (d, i) => `mx-col-${i}`)
+      .attr('class', 'mx-col-label')
+      .attr('dy', '0.5em').attr('dx', '0.5em')
+      .attr('text-anchor', 'right').style('font-size', '12px')
+      .attr('transform', (d, i) => `translate(${margin.left + i * (rw + distance)},${margin.top - 10}) rotate(-45)`)
+      .text(d => d)
+
+    svg.selectAll('.mx-row-label').data(orderedLabels).enter().append('text')
+      .attr('id', (d, i) => `mx-row-${i}`)
+      .attr('class', 'mx-row-label')
+      .attr('dy', '1em').attr('text-anchor', 'end').style('font-size', '12px')
+      .attr('transform', (d, i) => `translate(${margin.left - 10},${margin.top + i * (rh + distance)})`)
+      .text(d => d)
+
+    if (isCondEntropy) {
+      // ── drawMatrix: single triangle ───────────────────────────
+      const labelSuffix = matrixMetric.split('_')[2]  // 'truelabel' or 'prediction'
+      const useTrue = labelSuffix === 'truelabel'
+      const kvSingle = useTrue ? kvTrue : kvPred
+      const scaleSingle = useTrue ? scaleNorm : scaleNormP
+      const color = useTrue ? '#a6d96a' : '#92c5de'
+      const markerText = useTrue ? 'true-label' : 'prediction'
+
+      const entries = Object.entries(kvSingle)
+      const txys = [], tdata = [], tijs = []
+
+      svg.selectAll('.mx-rect-single').data(entries).enter().append('rect')
+        .attr('class', 'mx-rect-single')
+        .attr('id', (d) => { const [k] = d; const [ii, jj] = k.split('-'); return `mx-rect-${ii}-${jj}` })
+        .attr('width', rw).attr('height', rh)
+        .attr('fill', color)
+        .attr('stroke', 'black').attr('stroke-width', '1px')
+        .attr('opacity', (d, idx) => {
+          const [k, v] = entries[idx]
+          const [ii, jj] = k.split('-')
+          const res = scaleSingle(v)
+          const opa = v >= 1000000 ? minOpa : Math.max(minOpa, Math.abs(res))
+          tdata.push(res); tijs.push(`${ii}_${jj}`)
+          txys.push(`${pos[+ii] * (rw + distance) + margin.left},${pos[+jj] * (rh + distance) + margin.top}`)
+          return opa
+        })
+        .attr('transform', (d) => {
+          const [k] = d; const [ii, jj] = k.split('-')
+          return `translate(${pos[+ii] * (rw + distance) + margin.left},${pos[+jj] * (rh + distance) + margin.top})`
+        })
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => { const [k] = d; const [ii, jj] = k.split('-'); onCellClick(ii, jj) })
+        .on('mouseover', function(event, d) { const [k] = d; const [ii, jj] = k.split('-'); onCellOver(pos[+ii], pos[+jj]) })
+        .on('mouseout',  function(event, d) { const [k] = d; const [ii, jj] = k.split('-'); onCellOut(pos[+ii], pos[+jj]) })
+
+      svg.selectAll('.mx-txt-single').data(tdata).enter().append('text')
+        .attr('id', (d, i) => `mx-txt-${tijs[i].replace('_','-').split('-')[0]}-${tijs[i].replace('_','-').split('-')[1]}`)
+        .attr('class', 'mx-txt-single number_text')
+        .attr('dy', '1.3em').attr('dx', '0.5em')
+        .attr('text-anchor', 'start').style('font-size', '9px').style('cursor', 'pointer')
+        .attr('transform', (d, i) => `translate(${txys[i]})`)
+        .text(d => d > 100000 ? '.00' : setNum(d))
+        .on('mouseover', function(event, d) {
+          const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+          onCellOver(+id[0], +id[1])
+        })
+        .on('mouseout', function(event, d) {
+          const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+          onCellOut(+id[0], +id[1])
+        })
+        .on('click', function(event, d) {
+          const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+          onCellClick(id[0], id[1])
+        })
+
+      // markers
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','end')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#f4a582')
+        .attr('transform',`translate(${margin.left - 22},${margin.top - 10})`)
+        .text('uncertain attribute')
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','start')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#f4a582')
+        .attr('transform',`translate(${margin.left - 10},${margin.top - 24}) rotate(-90)`)
+        .text('condition')
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','start')
+        .style('font-size','12px').style('font-weight','bold').attr('fill', color)
+        .attr('transform',`translate(${margin.left / 2 + 125},${margin.top + N * rh + 15})`)
+        .text(markerText)
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','end')
+        .style('font-size','12px').style('font-weight','bold').attr('fill', color)
+        .attr('transform',`translate(${margin.left + N * rw + 14},110) rotate(270)`)
+        .text(markerText)
+
+    } else {
+      // ── drawMatrixMerged: upper=trueLabel (green), lower=predProb (blue), diag=between (orange) ──
+      const trueEntries  = Object.entries(kvTrue)
+      const predEntries  = Object.entries(kvPred)
+      const diagEntries  = Object.entries(kvBetween)
+
+      function drawTriangle(entries, scale, color, cls, isUpper, isDiag) {
+        const txys = [], tdata = [], tijs = []
+        svg.selectAll(`.${cls}`).data(entries).enter().append('rect')
+          .attr('class', cls)
+          .attr('id', (d) => { const [k] = d; const [ii,jj] = k.split('-'); return `mx-rect-${ii}-${jj}` })
+          .attr('width', rw).attr('height', rh)
+          .attr('fill', color)
+          .attr('stroke', isDiag ? color : 'black').attr('stroke-width', '1px')
+          .attr('opacity', (d, idx) => {
+            const [k, v] = entries[idx]
+            const [ii, jj] = k.split('-')
+            const vi = pos[+ii], vj = pos[+jj]
+            const inRegion = isDiag ? (vi === vj) : isUpper ? (vi > vj) : (vi < vj)
+            if (!inRegion) return 0
+            const res = scale(v)
+            const opa = v >= 1000000 ? minOpa : Math.max(minOpa, res < 0 ? Math.abs(res) : res)
+            tdata.push(isDiag ? scale(v) : res)
+            tijs.push(`${ii}_${jj}`)
+            txys.push(`${vi * (rw + distance) + margin.left},${vj * (rh + distance) + margin.top}`)
+            return opa
+          })
+          .attr('transform', (d) => {
+            const [k] = d; const [ii, jj] = k.split('-')
+            const vi = pos[+ii], vj = pos[+jj]
+            return `translate(${vi * (rw + distance) + margin.left},${vj * (rh + distance) + margin.top})`
+          })
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => { const [k]=d; const [ii,jj]=k.split('-'); onCellClick(ii, jj) })
+          .on('mouseover', function(event, d) { const [k]=d; const [ii,jj]=k.split('-'); onCellOver(pos[+ii], pos[+jj]) })
+          .on('mouseout',  function(event, d) { const [k]=d; const [ii,jj]=k.split('-'); onCellOut(pos[+ii], pos[+jj]) })
+
+        // value text
+        svg.selectAll(`.${cls}-txt`).data(tdata).enter().append('text')
+          .attr('id', (d, i) => `mx-txt-${tijs[i].split('_')[0]}-${tijs[i].split('_')[1]}`)
+          .attr('class', `${cls}-txt number_text`)
+          .attr('dy','1.3em').attr('dx','0.5em')
+          .attr('text-anchor','start').style('font-size','9px').style('cursor','pointer')
+          .attr('transform', (d, i) => `translate(${txys[i]})`)
+          .text(d => d > 10000 ? '.00' : setNum(d))
+          .on('mouseover', function() {
+            const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+            onCellOver(+id[0], +id[1])
+          })
+          .on('mouseout', function() {
+            const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+            onCellOut(+id[0], +id[1])
+          })
+          .on('click', function() {
+            const id = d3.select(this).attr('id').replace('mx-txt-','').split('-')
+            onCellClick(id[0], id[1])
+          })
+      }
+
+      drawTriangle(trueEntries, scaleTrue, '#a6d96a', 'mx-rect-true', true,  false)
+      drawTriangle(predEntries, scalePred,  '#92c5de', 'mx-rect-pred', false, false)
+      drawTriangle(diagEntries, scaleBetw, '#f4a582', 'mx-rect-diag', false, true)
+
+      // ── markers ─────────────────────────────────────────────────
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','end')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#f4a582')
+        .attr('transform',`translate(${margin.left - 24},${margin.top - 10})`).text('prediction')
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','start')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#f4a582')
+        .attr('transform',`translate(${margin.left - 10},${margin.top - 24}) rotate(-90)`).text('true-label')
+
+      svg.append('line').attr('x1', margin.left - 100).attr('y1', margin.top - 9)
+        .attr('x2', margin.left - 9).attr('y2', margin.top - 9).attr('stroke','#f4a582').attr('stroke-width',1)
+      svg.append('line').attr('x1', margin.left - 9).attr('y1', margin.top - 84)
+        .attr('x2', margin.left - 9).attr('y2', margin.top - 9).attr('stroke','#f4a582').attr('stroke-width',1)
+
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','start')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#92c5de')
+        .attr('transform',`translate(${margin.left / 2 + 120},${margin.top + N * rh + 15})`).text('prediction')
+      svg.append('text').attr('class','mutual_marker').attr('text-anchor','end')
+        .style('font-size','12px').style('font-weight','bold').attr('fill','#a6d96a')
+        .attr('transform',`translate(${margin.left + N * rw + 14},110) rotate(-90)`).text('true-label ')
+
+      svg.append('line').attr('x1', margin.left / 2 + 120).attr('y1', margin.top + N * rh + 6)
+        .attr('x2', margin.left / 2 + 245).attr('y2', margin.top + N * rh + 6).attr('stroke','#92c5de').attr('stroke-width',1)
+      svg.append('line').attr('x1', margin.left + N * rw + 6).attr('y1', 110)
+        .attr('x2', margin.left + N * rw + 6).attr('y2', 230).attr('stroke','#a6d96a').attr('stroke-width',1)
+
+      // boundaries
+      svg.append('line').attr('x1', margin.left / 2 + 120).attr('y1', margin.top + N * rh)
+        .attr('x2', margin.left + N * rw).attr('y2', margin.top + N * rh).attr('stroke','#92c5de').attr('stroke-width',1)
+      svg.append('line').attr('x1', margin.left / 2 + 120).attr('y1', margin.top)
+        .attr('x2', margin.left + N * rw).attr('y2', margin.top).attr('stroke','#a6d96a').attr('stroke-width',1)
+      svg.append('line').attr('x1', margin.left / 2 + 120).attr('y1', 110)
+        .attr('x2', margin.left / 2 + 120).attr('y2', 110 + N * rh).attr('stroke','#92c5de').attr('stroke-width',1)
+      svg.append('line').attr('x1', margin.left + N * rw).attr('y1', 110)
+        .attr('x2', margin.left + N * rw).attr('y2', 110 + N * rh).attr('stroke','#a6d96a').attr('stroke-width',1)
+    }
+
+  }, [matrixData, matrixMetric, matrixClustered, labels])
+
+  if (!matrixData) return null
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+      <svg ref={svgRef} />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // RelationsPanel — XOR-gate circle matrix + bar chart
 // Renders when filterLabels has at least one attribute selected
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1092,6 +1458,19 @@ function SelectionRow({ selection, index, onRemove }) {
   )
 }
 
+// Split assistant text into lines, ensuring numbered/bulleted items start on new lines
+function formatAIMessage(text) {
+  if (!text) return null
+  // Insert newline before numbered list items (e.g. "1. ", "2. ") and bullets ("- ", "• ")
+  const normalized = text
+    .replace(/([^\n])(\n?)(\s*)(\d+\.\s)/g, (_, pre, nl, sp, num) => nl ? `${pre}\n${num}` : `${pre}\n${num}`)
+    .replace(/([^\n])(\n?)(\s*)([-•]\s)/g,  (_, pre, nl, sp, bul) => nl ? `${pre}\n${bul}` : `${pre}\n${bul}`)
+  const lines = normalized.split('\n')
+  return lines.map((line, i) => (
+    <span key={i}>{line}{i < lines.length - 1 && <br />}</span>
+  ))
+}
+
 function AIAssistantPanel({ open, onClose }) {
   const [messages, setMessages] = useState([])
   const [input, setInput]       = useState('')
@@ -1126,7 +1505,7 @@ function AIAssistantPanel({ open, onClose }) {
             `ai-msg ${m.role === 'user' ? 'ai-msg-user' : 'ai-msg-assistant'}` +
             (m.isError ? ' ai-msg-error' : '')
           }>
-            {m.content}
+            {formatAIMessage(m.content)}
           </div>
         ))}
       </div>
