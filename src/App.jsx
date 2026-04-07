@@ -916,8 +916,32 @@ function RelationsPanel() {
       .attr('height', radius * 2)
       .attr('fill',   '#b2182b')
       .style('cursor', 'pointer')
-      .on('mouseover', function() { d3.select(this).attr('fill', '#f4a582') })
-      .on('mouseout',  function() { d3.select(this).attr('fill', '#b2182b') })
+      .on('mouseover', function(event, d) {
+        d3.select(this).attr('fill', '#f4a582')
+        const i = tableValues.indexOf(d)
+        const imageIds = gates[tableKeys[i]].imageIds
+        const types = ['act', 'layer1', 'layer3', 'layer5', 'fea', 'prd']
+        for (const id of imageIds) {
+          for (const type of types) {
+            d3.select(`#scatterdot-${type}-${id}`)
+              .append('circle')
+              .attr('class', 'scatterdot-hover')
+              .attr('r', 0)
+              .attr('fill', 'none')
+              .attr('stroke', 'red')
+              .attr('stroke-opacity', 0)
+              .attr('stroke-width', '2px')
+              .transition().duration(200)
+                .attr('r', 11).attr('stroke-opacity', 1)
+              .transition().duration(150)
+                .attr('r', 7).attr('stroke-opacity', 0.8)
+          }
+        }
+      })
+      .on('mouseout', function() {
+        d3.select(this).attr('fill', '#b2182b')
+        d3.selectAll('.scatterdot-hover').remove()
+      })
       .on('click', function(event, d) {
         const i = tableValues.indexOf(d)
         const imageIds = gates[tableKeys[i]].imageIds
