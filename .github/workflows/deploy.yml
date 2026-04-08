@@ -1,0 +1,83 @@
+name: Build and Deploy to GCE
+
+on:
+  push:
+    branches:
+      - master
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+  REPO: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/xscatter-repo
+  IMAGE: xscatter11
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build Docker images
+        run: |
+          docker build --no-cache \
+            -t ${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }} \
+            -t ${{ env.REPO }}/${{ env.IMAGE }}:latest \
+            .
+          docker build --no-cache \
+            -t ${{ env.REPO }}/lrp-service:${{ github.sha }} \
+            -t ${{ env.REPO }}/lrp-service:latest \
+            ./backend/lrp_service
+
+      - name: Push Docker images
+        run: |
+          docker push ${{ env.REPO }}/${{ env.IMAGE }}:${{ github.sha }}
+          docker push ${{ env.REPO }}/${{ env.IMAGE }}:latest
+          docker push ${{ env.REPO }}/lrp-service:${{ github.sha }}
+          docker push ${{ env.REPO }}/lrp-service:latest
+
+      - name: Deploy to GCE
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        with:
+          host: ${{ secrets.GCE_HOST }}
+          username: ${{ secrets.GCE_USER }}
+          key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
+          envs: ANTHROPIC_API_KEY
+          script: |
+            cd ~/xscatter11
+            grep -v '^ANTHROPIC_API_KEY=' .env 2>/dev/null > .env.tmp || true
+            echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env.tmp
+            mv .env.tmp .env
+            mkdir -p backend/lrp_service/model
+            if [ ! -f backend/lrp_service/model/model.ckpt-200.index ]; then
+              echo "Downloading LRP model from GCS..."
+              gcloud storage cp gs://xscatter-model-storage/lrp-model/model/* backend/lrp_service/model/
+            fi
+            echo "=== $(date) ===" >> ~/deploy.log
+            gcloud auth configure-docker us-central1-docker.pkg.dev --quiet >> ~/deploy.log 2>&1
+            docker compose pull app >> ~/deploy.log 2>&1
+            docker compose up -d --force-recreate app >> ~/deploy.log 2>&1
+            mkdir -p ~/xscatter11/backend/static
+            docker cp xscatter11-app-1:/app/dist ~/xscatter11/dist >> ~/deploy.log 2>&1 || true
+            docker pull ${{ env.REPO }}/lrp-service:latest >> ~/deploy.log 2>&1
+            docker stop xscatter11-lrp-service 2>/dev/null || true
+            docker rm xscatter11-lrp-service 2>/dev/null || true
+            docker run -d \
+              --name xscatter11-lrp-service \
+              --network xscatter11_default \
+              -v ~/xscatter11/backend/lrp_service/model:/model:ro \
+              -v ~/xscatter11/backend/static/images:/images:ro \
+              -e CKPT_PATH=/model/model.ckpt-200 \
+              ${{ env.REPO }}/lrp-service:latest >> ~/deploy.log 2>&1
+            docker image prune -f >> ~/deploy.log 2>&1

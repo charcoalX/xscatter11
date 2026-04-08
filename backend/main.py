@@ -23,6 +23,7 @@ except FileNotFoundError:
 from modules import *
 from query import *
 # from info import *
+from flask import send_from_directory
 
 app = Flask(__name__)
 app.debug = True
@@ -253,6 +254,17 @@ def Route_ask_assistant():
         return jsonify({'status': 'ok', 'reply': data['content'][0]['text']})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# Serve React frontend (production build)
+DIST_DIR = os.path.join(os.path.dirname(__file__), 'dist')
+
+@app.route('/', defaults={'path': ''})
+@app.route('/<path:path>')
+def serve_react(path):
+    if path and os.path.exists(os.path.join(DIST_DIR, path)):
+        return send_from_directory(DIST_DIR, path)
+    return send_from_directory(DIST_DIR, 'index.html')
 
 
 if __name__ == '__main__':

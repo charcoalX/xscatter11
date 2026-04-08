@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8085:8085"
+    environment:
+      - LRP_SERVICE_URL=http://lrp-service:5001
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      - lrp-service
+
+  lrp-service:
+    build: ./backend/lrp_service
+    ports:
+      - "5001:5001"
+    environment:
+      - CKPT_PATH=/model/model.ckpt-200
+    volumes:
+      - ./backend/lrp_service/model:/model:ro
+      - ./backend/static/images:/images:ro

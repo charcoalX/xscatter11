@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.github
+.claude
+.env
+backend/config.json
+backend/.env
+backend/__pycache__
+backend/static
+backend/lrp_service/model
+*.pyc
+*.log
