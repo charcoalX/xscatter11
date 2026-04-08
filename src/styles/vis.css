@@ -15,33 +15,37 @@
 
 .tab {
     overflow: hidden;
-    background-color: #f1f1f1;
+    background-color: #f1f5f9;
     height: 17px;
+    border-bottom: 1px solid #e2e8f0;
 }
 
 .tab-buttons {
-    background-color: #f0f0f0;
-    color: #000;
+    background-color: #f1f5f9;
+    color: #64748b;
     height: 17px;
     float: left;
     outline: none;
     cursor: pointer;
     padding: 0px 10px;
-    transition: 0.3s;
-    font-size: 12px;
+    transition: background 0.15s, color 0.15s;
+    font-size: 11px;
     width: 33.3%;
     border: none;
-    text-decoration: underline;
+    border-right: 1px solid #e2e8f0;
+    letter-spacing: 0.02em;
 }
 
 .tab-buttons:hover {
-    background-color: #525252;
-    color: #f0f0f0;
+    background-color: #e2e8f0;
+    color: #334155;
 }
 
 .tab-buttons.active {
-    background-color: #525252;
-    color: #f0f0f0;
+    background-color: #ffffff;
+    color: #1e293b;
+    font-weight: 600;
+    border-bottom: 2px solid #16a34a;
 }
   
 .tabcontent {
@@ -52,26 +56,27 @@
 }
 
 .tab-lock-button {
-    position :absolute;
+    position: absolute;
     width: auto;
     height: auto;
     top: 40px;
     right: 5px;
-    color: #d9d9d9;
+    color: #cbd5e1;
     background: transparent;
     outline: none;
     border: none;
-    font-size: 20px;
+    font-size: 18px;
     z-index: 1000;
     cursor: pointer;
+    transition: color 0.15s;
 }
 
 .tab-lock-button:hover {
-    color: #525252;
+    color: #475569;
 }
 
 .tab-lock-button.active {
-    color: #525252;
+    color: #16a34a;
 }
 
 .brush .extent {

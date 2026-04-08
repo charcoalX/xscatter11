@@ -58,6 +58,8 @@ export const useStore = create((set, get) => ({
 
   // Attribute filter: [] = all selected; [0,2,5] = only those indices
   filterLabels: [],
+  // true = select-all mode (checkbox checked); false = individual or deselect-all mode
+  attrSelectAll: true,
 
   // Dot display mode: 'default' | 'prediction' | 'flower'
   dotMode: 'default',
@@ -105,17 +107,20 @@ export const useStore = create((set, get) => ({
     set({ labels, labelColors })
   },
 
-  // Select All: clear filterLabels
-  selectAllLabels: () => set({ filterLabels: [] }),
+  // Select All: clear filterLabels and set checkbox checked
+  selectAllLabels: () => set({ filterLabels: [], attrSelectAll: true }),
+
+  // Deselect All: empty filterLabels but checkbox unchecked (no active labels)
+  deselectAllLabels: () => set({ filterLabels: [], attrSelectAll: false }),
 
   // Toggle one label index in/out of filterLabels
   toggleFilterLabel: (idx) => {
     const { filterLabels } = get()
     const pos = filterLabels.indexOf(idx)
     if (pos !== -1) {
-      set({ filterLabels: filterLabels.filter((_, i) => i !== pos) })
+      set({ filterLabels: filterLabels.filter((_, i) => i !== pos), attrSelectAll: false })
     } else {
-      set({ filterLabels: [...filterLabels, idx].sort((a, b) => a - b) })
+      set({ filterLabels: [...filterLabels, idx].sort((a, b) => a - b), attrSelectAll: false })
     }
   },
 

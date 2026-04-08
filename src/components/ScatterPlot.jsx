@@ -35,6 +35,7 @@ export default function ScatterPlot({
   hoveredDot = null,
   labelColors = [],
   filterLabels = [],
+  attrSelectAll = true,
   dotMode = 'default',
   bgOpacity = 1,
   selectMode = 'single',
@@ -87,7 +88,7 @@ export default function ScatterPlot({
       for (const id of sel.ids) selColorMap.set(id, sel.color)
 
     // active label indices
-    const activeLabels = filterLabels.length === 0
+    const activeLabels = attrSelectAll
       ? labelColors.map((_, i) => i)
       : filterLabels
 
@@ -320,7 +321,7 @@ export default function ScatterPlot({
 
     return () => d3.select(container).selectAll('svg').remove()
   }, [dots, type, distanceOfErrors, selectedDots, selectImageIds, labelColors, filterLabels,
-      dotMode, bgOpacity, selectMode, size])
+      attrSelectAll, dotMode, bgOpacity, selectMode, size])
 
   // Hover pulse — lightweight, no full redraw
   useEffect(() => {

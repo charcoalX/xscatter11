@@ -226,7 +226,7 @@ const CLUSTER_BY_OPTIONS = [
   { label: 'PRD tSNE', value: 'prd' },
 ]
 
-function FlowerPlot({ dot, labelColors, filterLabels, size = 50 }) {
+function FlowerPlot({ dot, labelColors, filterLabels, attrSelectAll = true, size = 50 }) {
   const ref = useRef(null)
   useEffect(() => {
     if (!ref.current || !dot) return
@@ -240,7 +240,7 @@ function FlowerPlot({ dot, labelColors, filterLabels, size = 50 }) {
 
     const probs  = dot.predProb  ?? []
     const truths = dot.trueLabel ?? []
-    const activeLabels = filterLabels.length === 0
+    const activeLabels = attrSelectAll
       ? labelColors.map((_, i) => i)
       : filterLabels
 
@@ -273,13 +273,13 @@ function FlowerPlot({ dot, labelColors, filterLabels, size = 50 }) {
     g.append('circle').attr('r', 10).attr('fill', '#fff')
     g.append('text').attr('dy', '.3em').style('text-anchor', 'middle')
       .style('fill', '#000').style('font-size', '10px').text(dot.id)
-  }, [dot, labelColors, filterLabels, size])
+  }, [dot, labelColors, filterLabels, attrSelectAll, size])
 
   return <svg ref={ref} width={size} height={size} style={{ cursor: 'pointer' }} />
 }
 
 export function ClusteringTab({ selection, dataType }) {
-  const { dots, labelColors, filterLabels, selectDot } = useStore()
+  const { dots, labelColors, filterLabels, attrSelectAll, selectDot } = useStore()
   const [clusterBy,     setClusterBy]     = useState('act')
   const [clusterWith,   setClusterWith]   = useState('kmean')
   const [clusterNum,    setClusterNum]    = useState(3)
@@ -328,18 +328,20 @@ export function ClusteringTab({ selection, dataType }) {
     <div style={{ position: 'relative', overflow: 'auto', height: '100%' }}>
       {/* Controls */}
       <div className="cluster-controls" style={{ padding: '4px 8px', fontSize: 11 }}>
-        Cluster By:{' '}
-        <select className="clusterby-selection" value={clusterBy} onChange={e => setClusterBy(e.target.value)}>
-          {CLUSTER_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <br />Cluster Methods:{' '}
-        <select className="clusterby-selection" value={clusterWith} onChange={e => setClusterWith(e.target.value)}>
-          <option value="kmean">K-Means</option>
-          <option value="dbscan">DBSCAN</option>
-        </select>
+        <div style={{ marginBottom: 4 }}>Cluster By:{' '}
+          <select className="clusterby-selection" value={clusterBy} onChange={e => setClusterBy(e.target.value)}>
+            {CLUSTER_BY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div style={{ marginBottom: 4 }}>Cluster Methods:{' '}
+          <select className="clusterby-selection" value={clusterWith} onChange={e => setClusterWith(e.target.value)}>
+            <option value="kmean">K-Means</option>
+            <option value="dbscan">DBSCAN</option>
+          </select>
+        </div>
 
         {clusterWith === 'kmean' && (
-          <div>
+          <div style={{ marginBottom: 4 }}>
             Clusters:{' '}
             <input type="range" className="cluster-slider" min={1} max={5} step={1}
               value={clusterNum} onChange={e => setClusterNum(+e.target.value)} />
@@ -348,16 +350,18 @@ export function ClusteringTab({ selection, dataType }) {
         )}
 
         {clusterWith === 'dbscan' && (
-          <div>
-            EPS:{' '}
-            <input type="range" className="cluster-slider" min={0} max={1} step={0.01}
-              value={eps} onChange={e => setEps(+e.target.value)} />
-            {' '}{eps}
-            <br />MinPts:{' '}
-            <input type="range" className="cluster-slider" min={3} max={10} step={1}
-              value={minSample} onChange={e => setMinSample(+e.target.value)} />
-            {' '}{minSample}
-          </div>
+          <>
+            <div style={{ marginBottom: 4 }}>EPS:{' '}
+              <input type="range" className="cluster-slider" min={0} max={1} step={0.01}
+                value={eps} onChange={e => setEps(+e.target.value)} />
+              {' '}{eps}
+            </div>
+            <div style={{ marginBottom: 4 }}>MinPts:{' '}
+              <input type="range" className="cluster-slider" min={3} max={10} step={1}
+                value={minSample} onChange={e => setMinSample(+e.target.value)} />
+              {' '}{minSample}
+            </div>
+          </>
         )}
       </div>
 
@@ -393,7 +397,7 @@ export function ClusteringTab({ selection, dataType }) {
                     style={{ width: 50, height: 50, marginRight: 2, float: 'left' }}
                     onClick={() => selectDot(dot)}
                   >
-                    <FlowerPlot dot={dot} labelColors={labelColors} filterLabels={filterLabels} size={50} />
+                    <FlowerPlot dot={dot} labelColors={labelColors} filterLabels={filterLabels} attrSelectAll={attrSelectAll} size={50} />
                   </div>
                 ) : null
               )}
@@ -401,12 +405,18 @@ export function ClusteringTab({ selection, dataType }) {
           ))}
 
           {/* Quality scores */}
-          <div className="cluster-coefficient" style={{ padding: 8, fontSize: 11 }}>
-            <strong>Cluster Quality Scores</strong>
-            <br /><br /><strong>Silhouette Score:</strong> {result.silh?.toFixed(4) ?? 'N/A'}
-            <br /><span style={{ color: 'red' }}>The best value is 1<br />The worst value is -1</span>
-            <br /><br /><strong>Davies Bouldin Score:</strong> {result.davies?.toFixed(4) ?? 'N/A'}
-            <br /><span style={{ color: 'red' }}>The minimum score is zero. <br />Lower is better.</span>
+          <div className="cluster-coefficient" style={{ padding: 8, fontSize: 11, marginTop: 12 }}>
+            <div style={{ marginBottom: 8 }}><strong>Cluster Quality Scores</strong></div>
+            <div style={{ marginBottom: 6 }}>
+              <strong>Silhouette Score:</strong> {result.silh?.toFixed(4) ?? 'N/A'}
+              {' '}
+              <span className="cluster-hint-icon" title="The best value is 1&#10;The worst value is -1">?</span>
+            </div>
+            <div style={{ marginBottom: 0 }}>
+              <strong>Davies Bouldin Score:</strong> {result.davies?.toFixed(4) ?? 'N/A'}
+              {' '}
+              <span className="cluster-hint-icon" title="The minimum score is zero.&#10;Lower is better.">?</span>
+            </div>
           </div>
         </>
       )}

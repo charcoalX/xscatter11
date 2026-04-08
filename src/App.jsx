@@ -67,7 +67,7 @@ export default function App() {
 
   const {
     setOptions, loadData, setLabels,
-    dots, distanceOfErrors, labelColors, filterLabels,
+    dots, distanceOfErrors, labelColors, filterLabels, attrSelectAll,
     selectedDots, selectImageIds,
     plotType, setPlotType,
     compareMode, setCompareMode,
@@ -75,6 +75,7 @@ export default function App() {
     bgOpacity, setBgOpacity,
     hoveredDot, setHoveredDot,
     selectDot, addLassoSelection, clearSelections, removeSelection, reorderSelections, removeImageId,
+    selectAllLabels, deselectAllLabels,
     attrStudyOpen, toggleAttrStudy,
     modelArchOpen, toggleModelArch, closeModelArch,
     aiAssistantOpen, toggleAIAssistant, closeAIAssistant,
@@ -169,7 +170,7 @@ export default function App() {
 
   // shared ScatterPlot props
   const spCommon = {
-    dots, distanceOfErrors, selectedDots, selectImageIds, hoveredDot, labelColors, filterLabels,
+    dots, distanceOfErrors, selectedDots, selectImageIds, hoveredDot, labelColors, filterLabels, attrSelectAll,
     dotMode, bgOpacity, selectMode,
     onDotClick:  selectDot,
     onDotHover:  setHoveredDot,
@@ -183,42 +184,48 @@ export default function App() {
       <div id="navbar">
         <div id="navbar-title">Visual Analysis of X-Ray Scattering Images</div>
 
-        <div id="navbar-file">
-          <label htmlFor="feature-file-select">Feature Names: </label>
-          <select
-            id="feature-file-select" className="navbar-selects"
-            value={featureFile}
-            onChange={e => setFeatureFile(e.target.value)}
-          >
-            {Object.keys(FEATURE_FILES).map(f => <option key={f} value={f}>{f}</option>)}
-          </select>
-        </div>
-
         <div id="navbar-options">
-          <label>Data types: </label>
-          <select
-            id="data-type-option" className="navbar-selects"
-            value={dataTypeLabel}
-            onChange={e => setDataTypeLabel(e.target.value)}
-          >
-            <option>Synthetic</option>
-            <option disabled title="Not available">Experimental</option>
-          </select>
+          <span className="navbar-item">
+            <label htmlFor="feature-file-select">Feature Names:</label>
+            <select
+              id="feature-file-select" className="navbar-selects"
+              value={featureFile}
+              onChange={e => setFeatureFile(e.target.value)}
+            >
+              {Object.keys(FEATURE_FILES).map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </span>
 
-          <label>Error methods: </label>
-          <select
-            id="error-method-option" className="navbar-selects"
-            value={errorMethod}
-            onChange={e => setErrorMethod(e.target.value)}
-          >
-            {ERROR_METHOD_OPTIONS.map(o => <option key={o}>{o}</option>)}
-          </select>
+          <span className="navbar-item">
+            <label>Data types:</label>
+            <select
+              id="data-type-option" className="navbar-selects"
+              value={dataTypeLabel}
+              onChange={e => setDataTypeLabel(e.target.value)}
+            >
+              <option>Synthetic</option>
+              <option disabled title="Not available">Experimental</option>
+            </select>
+          </span>
 
-          <label>Embedding methods: </label>
-          <select id="embedding-method-option" className="navbar-selects">
-            <option>T-SNE</option>
-            <option disabled title="Not available">PCA</option>
-          </select>
+          <span className="navbar-item">
+            <label>Error methods:</label>
+            <select
+              id="error-method-option" className="navbar-selects"
+              value={errorMethod}
+              onChange={e => setErrorMethod(e.target.value)}
+            >
+              {ERROR_METHOD_OPTIONS.map(o => <option key={o}>{o}</option>)}
+            </select>
+          </span>
+
+          <span className="navbar-item">
+            <label>Embedding methods:</label>
+            <select id="embedding-method-option" className="navbar-selects">
+              <option>T-SNE</option>
+              <option disabled title="Not available">PCA</option>
+            </select>
+          </span>
 
           <button className="navbar-buttons" onClick={() => { toggleAttrStudy(); setFilterOpen(true) }}>Open Attribute Study</button>
           <button className="navbar-buttons" onClick={toggleModelArch}>Model Architecture</button>
@@ -408,7 +415,18 @@ export default function App() {
           {/* ════ FILTER CONTAINER */}
           <div id="filter-container" style={{ width: `${filterWidth}%` }}>
             <div id="attribute-container">
-              <div className="container-title">Attributes</div>
+              <div className="container-title">
+                Attributes
+                {filterOpen && (
+                  <input
+                    type="checkbox"
+                    title={attrSelectAll ? 'Deselect all' : 'Select all'}
+                    checked={attrSelectAll}
+                    onChange={() => attrSelectAll ? deselectAllLabels() : selectAllLabels()}
+                    style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', margin: 0 }}
+                  />
+                )}
+              </div>
               <button
                 id="selection-toggle-btn"
                 className={filterOpen ? 'open' : ''}
@@ -1343,30 +1361,16 @@ function RelationsPanel() {
 }
 
 function AttributeList() {
-  const { labels, labelColors, filterLabels, selectAllLabels, toggleFilterLabel } = useStore()
+  const { labels, labelColors, filterLabels, attrSelectAll, toggleFilterLabel } = useStore()
 
   if (!labels.length) return (
     <div style={{ padding: 4, fontSize: 11, color: '#888' }}>Loading attributes…</div>
   )
 
-  const allSelected = filterLabels.length === 0
-
   return (
     <>
-      <div
-        id="attribute-selectall-btn"
-        className={`attribute-btn${allSelected ? ' selected' : ''}`}
-        onClick={selectAllLabels}
-      >
-        <span style={{
-          display: 'inline-block', width: 10, height: 10,
-          background: '#000', marginRight: 4, verticalAlign: 'middle',
-        }} />
-        Select All
-      </div>
-
       {labels.map((label, i) => {
-        const isSelected = allSelected || filterLabels.includes(i)
+        const isSelected = attrSelectAll || filterLabels.includes(i)
         return (
           <div
             key={i}
