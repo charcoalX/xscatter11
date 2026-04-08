@@ -25,3 +25,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Backend — secrets and large data (not committed)
+backend/.env
+backend/config.json
+backend/__pycache__/
+backend/lrp_service/model/
+backend/static/
+backend/resources/data/
+*.pyc

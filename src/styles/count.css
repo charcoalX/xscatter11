@@ -1,38 +1,37 @@
 table {
-    width: 88%;
+    width: 100%;
     border-collapse: collapse;
-    margin: 0px auto;
-    overflow-y:scroll;
-    float: right;
+    margin: 0;
 }
-/* Zebra striping */
+
 tr:nth-of-type(odd) {
-    background: #eee;
+    background: #f8fafc;
+}
+
+tr:hover {
+    background: #f1f5f9;
 }
 
 th {
-    background: #525252;
-    color: white;
-    /* font-weight: bold; */
-    font-size: 14px;
+    background: #334155;
+    color: #cbd5e1;
+    font-size: 11px;
+    font-weight: 600;
     cursor: s-resize;
-    background-repeat: no-repeat;
-    background-position: 3% center;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 1;
 }
 
-td,
-th {
-    padding: 6px;
-    border: 1px solid #ccc;
+td, th {
+    padding: 4px 6px;
+    border: 1px solid #e2e8f0;
     text-align: left;
-    font-size: 12px;
+    font-size: 11px;
 }
 
-th.des:after {
-    content: "\21E3";
-}
-
-th.aes:after {
-    content: "\21E1";
-}
+th.des:after { content: "\21E3"; }
+th.aes:after { content: "\21E1"; }
 
