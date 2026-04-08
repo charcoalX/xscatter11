@@ -45,39 +45,50 @@ jobs:
           docker push ${{ env.REPO }}/lrp-service:${{ github.sha }}
           docker push ${{ env.REPO }}/lrp-service:latest
 
-      - name: Deploy to GCE
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - name: Copy docker-compose to GCE
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.GCE_HOST }}
           username: ${{ secrets.GCE_USER }}
           key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
-          envs: ANTHROPIC_API_KEY
+          source: docker-compose.yml
+          target: ~/xscatter11/
+
+      - name: Deploy to GCE
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        with:
+          host: ${{ secrets.GCE_HOST }}
+          username: ${{ secrets.GCE_USER }}
+          key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
+          envs: ANTHROPIC_API_KEY,GCP_PROJECT_ID
           script: |
             cd ~/xscatter11
-            grep -v '^ANTHROPIC_API_KEY=' .env 2>/dev/null > .env.tmp || true
+
+            # Update .env with secrets
+            grep -v '^ANTHROPIC_API_KEY=\|^GCP_PROJECT_ID=' .env 2>/dev/null > .env.tmp || true
             echo "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> .env.tmp
+            echo "GCP_PROJECT_ID=${GCP_PROJECT_ID}" >> .env.tmp
             mv .env.tmp .env
+
+            # Download LRP model from GCS on first deploy
             mkdir -p backend/lrp_service/model
             if [ ! -f backend/lrp_service/model/model.ckpt-200.index ]; then
               echo "Downloading LRP model from GCS..."
               gcloud storage cp gs://xscatter-model-storage/lrp-model/model/* backend/lrp_service/model/
             fi
+
             echo "=== $(date) ===" >> ~/deploy.log
             gcloud auth configure-docker us-central1-docker.pkg.dev --quiet >> ~/deploy.log 2>&1
+
+            # Pull and restart main app
             docker compose pull app >> ~/deploy.log 2>&1
             docker compose up -d --force-recreate app >> ~/deploy.log 2>&1
-            mkdir -p ~/xscatter11/backend/static
-            docker cp xscatter11-app-1:/app/dist ~/xscatter11/dist >> ~/deploy.log 2>&1 || true
-            docker pull ${{ env.REPO }}/lrp-service:latest >> ~/deploy.log 2>&1
-            docker stop xscatter11-lrp-service 2>/dev/null || true
-            docker rm xscatter11-lrp-service 2>/dev/null || true
-            docker run -d \
-              --name xscatter11-lrp-service \
-              --network xscatter11_default \
-              -v ~/xscatter11/backend/lrp_service/model:/model:ro \
-              -v ~/xscatter11/backend/static/images:/images:ro \
-              -e CKPT_PATH=/model/model.ckpt-200 \
-              ${{ env.REPO }}/lrp-service:latest >> ~/deploy.log 2>&1
+
+            # Pull and restart lrp-service
+            docker compose pull lrp-service >> ~/deploy.log 2>&1
+            docker compose up -d --force-recreate lrp-service >> ~/deploy.log 2>&1
+
             docker image prune -f >> ~/deploy.log 2>&1

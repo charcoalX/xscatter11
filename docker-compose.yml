@@ -2,16 +2,23 @@ version: '3.8'
 
 services:
   app:
+    image: us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/xscatter-repo/xscatter11:latest
     build: .
     ports:
       - "8085:8085"
     environment:
       - LRP_SERVICE_URL=http://lrp-service:5001
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-5434}
+      - DB_NAME=${DB_NAME:-xraydb}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-}
     depends_on:
       - lrp-service
 
   lrp-service:
+    image: us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/xscatter-repo/lrp-service:latest
     build: ./backend/lrp_service
     ports:
       - "5001:5001"
