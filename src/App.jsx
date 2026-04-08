@@ -490,55 +490,50 @@ export default function App() {
 
           {/* ── count table (top 40%) ── */}
           <div id="attribute-matrix2-content">
-            {countLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
-            {countData && (
-              <CountPanel
-                countData={countData}
-                countNum={countNum}
-              />
-            )}
+            <div className="container-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px' }}>
+              <span>Coexisting Attributes Statistics</span>
+              <select
+                id="attribute-matrix2-option"
+                value={countNum}
+                onChange={e => setCountNum(Number(e.target.value))}
+              >
+                {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div className="attr-panel-body">
+              {countLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
+              {countData && <CountPanel countData={countData} countNum={countNum} />}
+            </div>
           </div>
 
           {/* ── heatmap (bottom 60%) ── */}
           <div id="attribute-matrix-content">
-            {matrixLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
-            {matrixData && (
-              <MatrixPanel
-                matrixData={matrixData}
-                matrixMetric={matrixMetric}
-                matrixClustered={matrixClustered}
-              />
-            )}
+            <div className="container-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px' }}>
+              <span>Pairwise Attributes Information</span>
+              <span style={{ display: 'flex', gap: 4 }}>
+                <select
+                  id="attribute-matrix-option"
+                  value={matrixMetric}
+                  onChange={e => setMatrixMetric(e.target.value)}
+                >
+                  <option value="MI">Mutual Info</option>
+                  <option value="correlation">Correlation</option>
+                  <option value="conditional_entropy_truelabel">Cond. Entropy TrueLabel</option>
+                  <option value="conditional_entropy_prediction">Cond. Entropy Prediction</option>
+                </select>
+                <button
+                  id="matrix-cluster-btn"
+                  className={matrixClustered ? 'selected' : ''}
+                  onClick={() => setMatrixClustered(c => !c)}
+                >Cluster</button>
+              </span>
+            </div>
+            <div className="attr-panel-body">
+              {matrixLoading && <div style={{ padding: 8, fontSize: 11, color: '#888' }}>Loading…</div>}
+              {matrixData && <MatrixPanel matrixData={matrixData} matrixMetric={matrixMetric} matrixClustered={matrixClustered} />}
+            </div>
           </div>
 
-          <div id="matrix-option-row">
-            <select
-              id="attribute-matrix-option"
-              value={matrixMetric}
-              onChange={e => setMatrixMetric(e.target.value)}
-            >
-              <option value="MI">Mutual Info</option>
-              <option value="correlation">Correlation</option>
-              <option value="conditional_entropy_truelabel">Cond. Entropy Truelabel</option>
-              <option value="conditional_entropy_prediction">Cond. Entropy Prediction</option>
-            </select>
-            <button
-              id="matrix-cluster-btn"
-              className={matrixClustered ? 'selected' : ''}
-              onClick={() => setMatrixClustered(c => !c)}
-            >Cluster</button>
-          </div>
-
-          <select
-            id="attribute-matrix2-option"
-            value={countNum}
-            onChange={e => setCountNum(Number(e.target.value))}
-          >
-            {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-
-          <div id="attribute-matrix-title">Coexisting Attributes Statistics</div>
-          <div id="attribute-matrix2-title">Pairwise Attributes Information</div>
         </div>
 
       </div>{/* /main-container */}
@@ -898,10 +893,22 @@ function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
   const { labels, selectAllLabels, toggleFilterLabel } = useStore()
   const svgRef       = useRef()
   const containerRef = useRef()
+  const [size, setSize] = useState({ w: 0, h: 0 })
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(entries => {
+      const { width, height } = entries[0].contentRect
+      setSize({ w: Math.floor(width), h: Math.floor(height) })
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     const el = svgRef.current
-    if (!el || !matrixData || !labels.length) return
+    if (!el || !matrixData || !labels.length || !size.w || !size.h) return
     const svg = d3.select(el)
     svg.selectAll('*').remove()
 
@@ -931,8 +938,8 @@ function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
 
     const N = labels.length
     const margin = { left: 240, top: 110, right: 50, bottom: 30 }
-    const width  = containerRef.current.clientWidth  || 500
-    const height = containerRef.current.clientHeight || 400
+    const width  = size.w || 500
+    const height = size.h || 400
     const distance = 0
     const minOpa = isCondEntropy ? 0.2 : 0.1
 
@@ -1014,7 +1021,7 @@ function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
           const [ii, jj] = k.split('-')
           const res = scaleSingle(v)
           const opa = v >= 1000000 ? minOpa : Math.max(minOpa, Math.abs(res))
-          tdata.push(res); tijs.push(`${ii}_${jj}`)
+          tdata.push(res); tijs.push(`${pos[+ii]}_${pos[+jj]}`)
           txys.push(`${pos[+ii] * (rw + distance) + margin.left},${pos[+jj] * (rh + distance) + margin.top}`)
           return opa
         })
@@ -1088,7 +1095,7 @@ function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
             const res = scale(v)
             const opa = v >= 1000000 ? minOpa : Math.max(minOpa, res < 0 ? Math.abs(res) : res)
             tdata.push(isDiag ? scale(v) : res)
-            tijs.push(`${ii}_${jj}`)
+            tijs.push(`${vi}_${vj}`)
             txys.push(`${vi * (rw + distance) + margin.left},${vj * (rh + distance) + margin.top}`)
             return opa
           })
@@ -1164,12 +1171,12 @@ function MatrixPanel({ matrixData, matrixMetric, matrixClustered }) {
         .attr('x2', margin.left + N * rw).attr('y2', 110 + N * rh).attr('stroke','#a6d96a').attr('stroke-width',1)
     }
 
-  }, [matrixData, matrixMetric, matrixClustered, labels])
+  }, [matrixData, matrixMetric, matrixClustered, labels, size])
 
   if (!matrixData) return null
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto' }}>
+    <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
       <svg ref={svgRef} />
     </div>
   )
