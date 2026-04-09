@@ -262,9 +262,14 @@ DIST_DIR = os.path.join(os.path.dirname(__file__), 'dist')
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve_react(path):
-    if path and os.path.exists(os.path.join(DIST_DIR, path)):
-        return send_from_directory(DIST_DIR, path)
-    return send_from_directory(DIST_DIR, 'index.html')
+    import traceback
+    try:
+        if path and os.path.exists(os.path.join(DIST_DIR, path)):
+            return send_from_directory(DIST_DIR, path)
+        return send_from_directory(DIST_DIR, 'index.html')
+    except Exception as e:
+        traceback.print_exc()
+        return str(e), 500
 
 
 if __name__ == '__main__':
