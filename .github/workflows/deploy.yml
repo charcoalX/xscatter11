@@ -45,15 +45,6 @@ jobs:
           docker push ${{ env.REPO }}/lrp-service:${{ github.sha }}
           docker push ${{ env.REPO }}/lrp-service:latest
 
-      - name: Copy docker-compose to GCE
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.GCE_HOST }}
-          username: ${{ secrets.GCE_USER }}
-          key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
-          source: docker-compose.yml
-          target: ~/xscatter11/
-
       - name: Deploy to GCE
         uses: appleboy/ssh-action@v1.0.3
         env:
@@ -65,7 +56,11 @@ jobs:
           key: ${{ secrets.GCE_SSH_PRIVATE_KEY }}
           envs: ANTHROPIC_API_KEY,GCP_PROJECT_ID
           script: |
+            mkdir -p ~/xscatter11
             cd ~/xscatter11
+
+            # Pull latest docker-compose.yml from GitHub
+            curl -fsSL https://raw.githubusercontent.com/charcoalX/xscatter11/master/docker-compose.yml -o docker-compose.yml
 
             # Update .env with secrets
             grep -v '^ANTHROPIC_API_KEY=\|^GCP_PROJECT_ID=' .env 2>/dev/null > .env.tmp || true
