@@ -355,6 +355,8 @@ html, body {
     height: 100%;
     float: left;
     background: #f8fafc;
+    border-left: 1px solid #e2e8f0;
+    box-sizing: border-box;
     -webkit-transition: width 0.5s;
     transition: width 0.5s;
 }
