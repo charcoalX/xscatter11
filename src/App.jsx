@@ -697,7 +697,7 @@ function DetailedImage({ id, dataType }) {
     <div
       style={{
         display: 'inline-block', verticalAlign: 'top', background: '#fff',
-        marginRight: 8, padding: '6px 6px 4px', position: 'relative',
+        marginRight: 8, padding: '6px 6px 18px', position: 'relative',
         fontSize: 11, width: 120, flexShrink: 0,
       }}
       onMouseEnter={() => dot && setHoveredDot(dot)}
