@@ -630,7 +630,7 @@ function DetailedImage({ id, dataType }) {
     const containerH  = el.closest('#image-content')?.offsetHeight ?? 200
     const imgMaxH     = Math.floor(containerH * 0.5)
     const imgH        = resolvedImg ? Math.min(resolvedImg.offsetHeight, imgMaxH) : imgMaxH
-    const overhead    = 26
+    const overhead    = 50
     const heatmapH    = Math.max(50, containerH - imgH - overhead)
 
     const rh = Math.max(3, Math.floor(heatmapH / 2 / rows) - 10)
@@ -697,7 +697,7 @@ function DetailedImage({ id, dataType }) {
     <div
       style={{
         display: 'inline-block', verticalAlign: 'top', background: '#fff',
-        marginRight: 8, padding: '6px 6px 18px', position: 'relative',
+        marginRight: 8, padding: '6px 6px 4px', position: 'relative',
         fontSize: 11, width: 120, flexShrink: 0,
       }}
       onMouseEnter={() => dot && setHoveredDot(dot)}
