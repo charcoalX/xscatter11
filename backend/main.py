@@ -28,6 +28,8 @@ from flask import send_from_directory
 app = Flask(__name__)
 app.debug = True
 
+DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dist')
+
 # Read connection information from config.json
 with open('config.json') as config_file:
     conn_info = json.load(config_file)
@@ -57,14 +59,7 @@ except:
 
 @app.route('/')
 def index():
-    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'resources', 'data')
-    feature_files = {}
-    for f in os.listdir(data_dir):
-        filepath = os.path.join(data_dir, f)
-        if os.path.isfile(filepath):
-            with open(filepath, 'r', encoding='utf-8') as fh:
-                feature_files[f] = fh.read()
-    return render_template('index.html', feature_files=feature_files)
+    return send_from_directory(DIST_DIR, 'index.html')
 
 @app.route('/QueryAll', methods = ['POST'])
 def Route_query_all():
@@ -256,20 +251,12 @@ def Route_ask_assistant():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-# Serve React frontend (production build)
-DIST_DIR = os.path.join(os.path.dirname(__file__), 'dist')
-
-@app.route('/', defaults={'path': ''})
+# Serve React frontend static assets
 @app.route('/<path:path>')
 def serve_react(path):
-    import traceback
-    try:
-        if path and os.path.exists(os.path.join(DIST_DIR, path)):
-            return send_from_directory(DIST_DIR, path)
-        return send_from_directory(DIST_DIR, 'index.html')
-    except Exception as e:
-        traceback.print_exc()
-        return str(e), 500
+    if os.path.exists(os.path.join(DIST_DIR, path)):
+        return send_from_directory(DIST_DIR, path)
+    return send_from_directory(DIST_DIR, 'index.html')
 
 
 if __name__ == '__main__':
