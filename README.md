@@ -4,6 +4,8 @@ A React + D3 interactive visualization platform for analyzing X-ray scattering i
 
 This project is a frontend reimplementation of [xscatter10](https://github.com/charcoalX/xscatter10), using React 19 + D3 v7 instead of vanilla JS, with the same Flask backend.
 
+![Interface](interface.png)
+
 ---
 
 ## Features
