@@ -1,6 +1,18 @@
-version: '3.8'
-
 services:
+  postgres:
+    image: us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/xscatter-repo/xray-postgres:latest
+    container_name: xray-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: password123
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d xraydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   app:
     image: us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/xscatter-repo/xscatter11:latest
     build: .
@@ -9,15 +21,18 @@ services:
     environment:
       - LRP_SERVICE_URL=http://lrp-service:5001
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - DB_HOST=${DB_HOST:-localhost}
-      - DB_PORT=${DB_PORT:-5434}
-      - DB_NAME=${DB_NAME:-xraydb}
-      - DB_USER=${DB_USER:-admin}
-      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=xraydb
+      - DB_USER=admin
+      - DB_PASSWORD=password123
     volumes:
       - ./config.json:/app/config.json:ro
     depends_on:
-      - lrp-service
+      postgres:
+        condition: service_healthy
+      lrp-service:
+        condition: service_started
 
   lrp-service:
     image: us-central1-docker.pkg.dev/${GCP_PROJECT_ID}/xscatter-repo/lrp-service:latest
@@ -29,3 +44,8 @@ services:
     volumes:
       - ./backend/lrp_service/model:/model:ro
       - ./backend/static/images:/images:ro
+
+volumes:
+  pgdata:
+    name: 451ffb55cd382b53776a50ff65d3f4621aa498bbcf2659c4828a3f758c7b0e93
+    external: true
